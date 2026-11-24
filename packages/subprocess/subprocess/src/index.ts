@@ -47,6 +47,18 @@ export type {
 export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
 
 /**
+ * Git's indexed command-line configuration: `GIT_CONFIG_COUNT` plus
+ * `GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n`, which Git exports to its children
+ * for every `git -c` invocation. The key names are credential-shaped and would
+ * be stripped one by one, leaving a counter with no key — a combination Git
+ * rejects before reading any configuration file (`missing config key
+ * GIT_CONFIG_KEY_0`). The group is scrubbed as a unit: a value can carry a
+ * credential (`-c http.extraheader=...`), so neither the surviving counter nor
+ * the surviving values are safe to forward.
+ */
+const GIT_COMMAND_LINE_CONFIG = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/iu
+
+/**
  * The ambient parent environment minus credential-shaped names and minus all
  * `DSH_*` names — the canonical base every harness child starts from. `PATH`,
  * `HOME`, locale, and proxy variables survive, so child CLIs run normally;
@@ -59,6 +71,10 @@ export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
  * that cannot route through the service (node-pty backends, SDK-managed
  * transports) share the one scrub definition.
  *
+ * Git's indexed command-line configuration is removed as a whole rather than
+ * name by name, so a child never inherits a counter without its key (see
+ * {@link GIT_COMMAND_LINE_CONFIG}).
+ *
  * When a proxy is active the result also carries the resolved proxy names and the flag a child Node
  * needs to honor them, so a child inherits the same routing as its parent.
  * @returns a fresh environment object safe to hand to a child spawn.
@@ -66,7 +82,10 @@ export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
 export function scrubbedParentEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && !SENSITIVE_ENV_PATTERN.test(key) && !key.toUpperCase().startsWith(DSH_ENV_PREFIX)) env[key] = value
+    const scrubbed = SENSITIVE_ENV_PATTERN.test(key)
+      || GIT_COMMAND_LINE_CONFIG.test(key)
+      || key.toUpperCase().startsWith(DSH_ENV_PREFIX)
+    if (value !== undefined && !scrubbed) env[key] = value
   }
   // A child Node ignores the inherited proxy variables unless the flag this adds is set, so an MCP
   // stdio server or subagent CLI would connect directly while its parent proxies. The same overlay
