@@ -77,7 +77,7 @@ const output = handle.collected.stdout?.readFrom(0)
 
 ### 每个子进程起步时的环境
 
-子进程永远不会隐式继承 harness 的环境秘密：形似凭据的名称与环境中的 `DSH_*` 事实都会被清除，调用方显式的 `env` 在该清除之后合并。有意转发的凭据或当前的 `DSH_*` 部署事实仍会到达子进程；显式的 `undefined` 墓碑值则移除一个普通的环境项。
+子进程永远不会隐式继承 harness 的环境秘密：形似凭据的名称、Git 的索引式命令行配置（`GIT_CONFIG_COUNT` 及其 `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`，整组清除，使子进程不会只拿到计数器而没有键），以及环境中的 `DSH_*` 事实都会被清除，调用方显式的 `env` 在该清除之后合并。有意转发的凭据或当前的 `DSH_*` 部署事实仍会到达子进程；显式的 `undefined` 墓碑值则移除一个普通的环境项。
 
 ### 可能出错的地方
 

@@ -3,11 +3,10 @@
  *
  * Git exports its indexed command-line configuration (`GIT_CONFIG_COUNT` with
  * `GIT_CONFIG_KEY_n` / `GIT_CONFIG_VALUE_n`, or the older `GIT_CONFIG_PARAMETERS`)
- * to `git -c` calls and to hook children. The shared subprocess scrub removes
- * credential-shaped names, so a child that inherits the counter without its key
- * fails before it reads any configuration file (`error: missing config key
- * GIT_CONFIG_KEY_0`). These specs judge profile behavior rather than host state,
- * so they run Git without the host's group.
+ * to `git -c` calls and to hook children. `scrubbedParentEnv` drops that group
+ * whole, but these specs also spawn Git from this process's own environment, so
+ * a host that ran `git -c` would hand them the group directly. These specs judge
+ * profile behavior rather than host state, so they run Git without it.
  */
 
 import { vi } from 'vitest'

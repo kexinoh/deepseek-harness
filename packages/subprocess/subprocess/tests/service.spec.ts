@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PassThrough } from 'node:stream'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import { scrubbedParentEnv, SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type {
@@ -98,6 +100,43 @@ describe('SubprocessRuntime seam', () => {
       delete process.env.SCRUB_PROBE_TOKEN
       delete process.env.SCRUB_PROBE_PASSWORD
       delete process.env.SCRUB_PROBE_PLAIN
+    }
+  })
+
+  it('scrubbedParentEnv drops Git indexed command-line configuration as one group', () => {
+    // Git exports this group to its children for `git -c`: the counter survives the
+    // credential-shaped scrub while its key does not, unless the group goes together.
+    process.env.GIT_CONFIG_COUNT = '1'
+    process.env.GIT_CONFIG_KEY_0 = 'http.extraheader'
+    process.env.GIT_CONFIG_VALUE_0 = 'Authorization: Bearer secret'
+    try {
+      const env = scrubbedParentEnv()
+      expect(env.GIT_CONFIG_COUNT).toBeUndefined()
+      expect(env.GIT_CONFIG_KEY_0).toBeUndefined()
+      expect(env.GIT_CONFIG_VALUE_0).toBeUndefined()
+    } finally {
+      delete process.env.GIT_CONFIG_COUNT
+      delete process.env.GIT_CONFIG_KEY_0
+      delete process.env.GIT_CONFIG_VALUE_0
+    }
+  })
+
+  it('scrubbedParentEnv yields an environment real Git can parse', () => {
+    process.env.GIT_CONFIG_COUNT = '1'
+    process.env.GIT_CONFIG_KEY_0 = 'core.quotePath'
+    process.env.GIT_CONFIG_VALUE_0 = 'false'
+    try {
+      const result = spawnSync('git', ['config', '--list'], {
+        env: scrubbedParentEnv(),
+        cwd: tmpdir(),
+        encoding: 'utf8',
+      })
+      expect(result.stderr).not.toContain('missing config key')
+      expect(result.status).toBe(0)
+    } finally {
+      delete process.env.GIT_CONFIG_COUNT
+      delete process.env.GIT_CONFIG_KEY_0
+      delete process.env.GIT_CONFIG_VALUE_0
     }
   })
 })
